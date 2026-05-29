@@ -68,19 +68,27 @@ public class OfferingService {
                 new CourseSession(offering, offering.getTeacherId(), start, end, timezone)
         );
         offering.publish();
+        offeringRepository.save(offering);
         return toResponse(session, timezone);
     }
 
     @Transactional(readOnly = true)
     public List<OfferingResponse> getTeacherOfferings(UUID teacherId, String timezone) {
-        Instant now = Instant.now();
-        return toResponses(offeringRepository.findUpcomingByTeacherId(teacherId, now), timezone, now);
+        return offeringRepository.findByTeacherIdOrderByCreatedAtDesc(teacherId).stream()
+                .map(offering -> toResponse(
+                        offering,
+                        sessionRepository.findByOfferingIdOrderByStartAt(offering.getId()),
+                        resolveTimezone(timezone, offering)
+                ))
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public List<OfferingResponse> getAvailableOfferings(String timezone) {
-        Instant now = Instant.now();
-        return toResponses(offeringRepository.findAvailable(OfferingStatus.PUBLISHED, now), timezone, now);
+        if (timezone != null && !timezone.isBlank()) {
+            timeZoneService.parse(timezone);
+        }
+        return toResponses(offeringRepository.findAvailable(OfferingStatus.PUBLISHED), timezone);
     }
 
     @Transactional(readOnly = true)
@@ -90,18 +98,22 @@ public class OfferingService {
         return toResponse(offering, sessions, resolveTimezone(timezone, offering));
     }
 
-    private List<OfferingResponse> toResponses(List<Offering> offerings, String timezone, Instant fromTime) {
+    private List<OfferingResponse> toResponses(List<Offering> offerings, String timezone) {
         return offerings.stream()
                 .map(offering -> toResponse(
                         offering,
-                        sessionRepository.findByOfferingIdAndEndAtGreaterThanEqualOrderByStartAt(offering.getId(), fromTime),
+                        sessionRepository.findByOfferingIdOrderByStartAt(offering.getId()),
                         resolveTimezone(timezone, offering)
                 ))
                 .toList();
     }
 
     private String resolveTimezone(String timezone, Offering offering) {
-        return timezone == null || timezone.isBlank() ? offering.getTeacherTimezone() : timezone;
+        if (timezone == null || timezone.isBlank()) {
+            return offering.getTeacherTimezone();
+        }
+        timeZoneService.parse(timezone);
+        return timezone;
     }
 
     private OfferingResponse toResponse(Offering offering, List<CourseSession> sessions, String timezone) {

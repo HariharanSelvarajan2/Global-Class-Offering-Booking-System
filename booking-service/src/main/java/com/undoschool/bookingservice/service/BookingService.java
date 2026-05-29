@@ -96,11 +96,12 @@ public class BookingService {
     }
 
     private void rejectOverlappingBooking(UUID parentId, List<SessionResponse> requestedSessions, String timezone) {
-        List<SessionResponse> requested = requestedSessions.stream().map(this::validated).toList();
+        List<SessionResponse> requested = sessionsOrEmpty(requestedSessions).stream().map(this::validated).toList();
 
         boolean overlaps = bookingRepository.findByParentIdOrderByBookedAtDesc(parentId).stream()
                 .map(booking -> courseServiceClient.getOffering(booking.getOfferingId(), timezone))
-                .flatMap(offering -> offering.sessions().stream())
+                .flatMap(offering -> sessionsOrEmpty(offering.sessions()).stream())
+                .map(this::validated)
                 .anyMatch(existing -> requested.stream().anyMatch(session -> overlaps(session, existing)));
 
         if (overlaps) {
@@ -115,6 +116,10 @@ public class BookingService {
         if (offering.sessions() == null || offering.sessions().isEmpty()) {
             throw new BadRequestException("Offering has no sessions to book.");
         }
+    }
+
+    private List<SessionResponse> sessionsOrEmpty(List<SessionResponse> sessions) {
+        return sessions == null ? List.of() : sessions;
     }
 
     private Booking saveBooking(UUID parentId, OfferingResponse offering) {

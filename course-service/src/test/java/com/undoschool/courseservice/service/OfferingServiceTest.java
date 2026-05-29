@@ -13,11 +13,14 @@ import com.undoschool.courseservice.dto.SessionResponse;
 import com.undoschool.courseservice.entity.Course;
 import com.undoschool.courseservice.entity.CourseSession;
 import com.undoschool.courseservice.entity.Offering;
+import com.undoschool.courseservice.entity.OfferingStatus;
 import com.undoschool.courseservice.exception.BadRequestException;
 import com.undoschool.courseservice.repository.CourseRepository;
 import com.undoschool.courseservice.repository.CourseSessionRepository;
 import com.undoschool.courseservice.repository.OfferingRepository;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,6 +95,7 @@ class OfferingServiceTest {
         assertThat(response.startAtUtc().toString()).isEqualTo("2026-06-06T12:30:00Z");
         assertThat(response.endAtUtc().toString()).isEqualTo("2026-06-06T13:30:00Z");
         assertThat(response.displayTimezone()).isEqualTo("Asia/Kolkata");
+        assertThat(offering.getStatus().name()).isEqualTo("PUBLISHED");
     }
 
     @Test
@@ -106,5 +110,48 @@ class OfferingServiceTest {
                 null
         ))).isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("end time");
+    }
+
+    @Test
+    void getsTeacherOfferingsWithAllSessionsEvenWhenSessionsAreNotUpcoming() {
+        UUID teacherId = UUID.randomUUID();
+        Offering offering = new Offering(new Course("Python Coding"), teacherId, "Draft Batch", "Asia/Kolkata");
+        CourseSession pastSession = new CourseSession(
+                offering,
+                teacherId,
+                Instant.parse("2026-05-20T13:30:00Z"),
+                Instant.parse("2026-05-20T14:30:00Z"),
+                "Asia/Kolkata"
+        );
+        when(offeringRepository.findByTeacherIdOrderByCreatedAtDesc(teacherId)).thenReturn(List.of(offering));
+        when(sessionRepository.findByOfferingIdOrderByStartAt(offering.getId())).thenReturn(List.of(pastSession));
+
+        List<OfferingResponse> responses = offeringService.getTeacherOfferings(teacherId, "Asia/Kolkata");
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).offeringName()).isEqualTo("Draft Batch");
+        assertThat(responses.get(0).sessions()).hasSize(1);
+    }
+
+    @Test
+    void getsAvailableOfferingsWithAllSessionsEvenWhenSessionsAreNotUpcoming() {
+        UUID teacherId = UUID.randomUUID();
+        Offering offering = new Offering(new Course("Python Coding"), teacherId, "Published Batch", "Asia/Kolkata");
+        offering.publish();
+        CourseSession pastSession = new CourseSession(
+                offering,
+                teacherId,
+                Instant.parse("2026-05-20T13:30:00Z"),
+                Instant.parse("2026-05-20T14:30:00Z"),
+                "Asia/Kolkata"
+        );
+        when(offeringRepository.findAvailable(OfferingStatus.PUBLISHED)).thenReturn(List.of(offering));
+        when(sessionRepository.findByOfferingIdOrderByStartAt(offering.getId())).thenReturn(List.of(pastSession));
+
+        List<OfferingResponse> responses = offeringService.getAvailableOfferings("Asia/Kolkata");
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).offeringName()).isEqualTo("Published Batch");
+        assertThat(responses.get(0).sessions()).hasSize(1);
     }
 }
