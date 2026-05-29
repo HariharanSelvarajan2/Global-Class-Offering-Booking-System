@@ -1,0 +1,10 @@
+target/
+.tools/
+.idea/
+.vscode/
+.sonarlint/
+*.iml
+.DS_Store
+*.log
+docker/postgres-data/
+/.metadata/

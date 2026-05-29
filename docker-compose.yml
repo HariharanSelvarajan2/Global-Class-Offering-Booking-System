@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: global-class-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  course-service:
+    build:
+      context: .
+      dockerfile: course-service/Dockerfile
+    environment:
+      COURSE_DB_URL: jdbc:postgresql://postgres:5432/course_db
+      COURSE_DB_USERNAME: postgres
+      COURSE_DB_PASSWORD: postgres
+      COURSE_SERVICE_PORT: 8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  booking-service:
+    build:
+      context: .
+      dockerfile: booking-service/Dockerfile
+    environment:
+      BOOKING_DB_URL: jdbc:postgresql://postgres:5432/booking_db
+      BOOKING_DB_USERNAME: postgres
+      BOOKING_DB_PASSWORD: postgres
+      BOOKING_SERVICE_PORT: 8082
+      COURSE_SERVICE_URL: http://course-service:8081
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      course-service:
+        condition: service_started
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    environment:
+      API_GATEWAY_PORT: 8080
+      COURSE_SERVICE_URL: http://course-service:8081
+      BOOKING_SERVICE_URL: http://booking-service:8082
+    ports:
+      - "8080:8080"
+    depends_on:
+      course-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
