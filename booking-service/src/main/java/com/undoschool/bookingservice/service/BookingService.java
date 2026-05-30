@@ -13,8 +13,8 @@ import com.undoschool.bookingservice.repository.ParentBookingLockRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -25,6 +25,7 @@ public class BookingService {
     private final ParentBookingLockRepository lockRepository;
     private final TimeZoneValidator timeZoneValidator;
 
+    @Autowired
     public BookingService(
             CourseServiceClient courseServiceClient,
             BookingRepository bookingRepository,
@@ -42,7 +43,7 @@ public class BookingService {
         return courseServiceClient.getAvailableOfferings(timezone);
     }
 
-    @Transactional(isolation = Isolation.SERIALIZABLE)
+    @Transactional
     public BookingResponse bookOffering(BookOfferingRequest request) {
         timeZoneValidator.validate(request.timezone());
         lockParent(request.parentId());
