@@ -32,11 +32,6 @@ Booking Service also has:
 
 API Gateway is intentionally thin. It only routes requests and exposes a combined Swagger UI.
 
-## Services
-
-This repository is a microservices system kept in a single Git repository, also called a monorepo. It is not a monolith: Course Service, Booking Service, and API Gateway are separate Spring Boot applications with separate responsibilities and separate databases. Keeping them in one repo is fine for a demo or small team because it makes local setup and shared versioning easier, but the services still communicate over HTTP and should be deployed as separate processes.
-
-This split is useful here because Course Service owns offerings/sessions, while Booking Service owns parent bookings and concurrency rules. For a production system, keep this shape only if those ownership boundaries are valuable enough to justify the extra distributed-system complexity.
 
 ### Course Service
 
@@ -244,7 +239,7 @@ curl -X POST http://localhost:8080/course/api/v1/teacher/offerings \
   -d '{"teacherId":"33333333-3333-3333-3333-333333333333","courseName":"Art Drawing","offeringName":"Tokyo Morning","teacherTimezone":"Asia/Tokyo"}'
 ```
 
-#### Add Session
+#### Add Session (Copy paste the offering ID from the 'course/api/v1/teacher/offerings' reponse )
 
 `POST /course/api/v1/teacher/offerings/{offeringId}/sessions`
 
@@ -376,9 +371,12 @@ curl "http://localhost:8080/booking/api/v1/parent/bookings?parentId=cccccccc-ccc
 
 ## Useful Test Flow
 
-1. Create an offering in Course Service.
-2. Add multiple sessions to that offering.
-3. Call Booking Service `GET /api/v1/parent/offerings` with a parent timezone.
+1. Create an offering in Course Service using `http://localhost:8080/course/api/v1/teacher/offerings`
+2. Add multiple sessions to that offering, copy paste the offering id from above response.
+3. View the offerings from parent api with parent timezone - POST `http://localhost:8080/booking/api/v1/parent/offerings`
+3. Call Booking Service `http://localhost:8080/booking/api/v1/parent/bookings` with desired offering id,
+parent id is just UUID field, random Id for parent Id works.(Further, can introduce a user with role based access for parents/teachers, then use get from parent/teacher id through client)
 4. Book the offering.
 5. Try booking another offering with an overlapping session for the same parent.
 6. The second booking should return `409 BOOKING_CONFLICT`.
+7. Concurrent booking tried and tested using powershell.
