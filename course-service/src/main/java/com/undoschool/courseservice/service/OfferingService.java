@@ -133,10 +133,10 @@ public class OfferingService {
                 session.getId(),
                 session.getOffering().getId(),
                 session.getTeacherId(),
-                timeZoneService.formatUtc(session.getStartAt()),
-                timeZoneService.formatUtc(session.getEndAt()),
-                timeZoneService.formatLocal(session.getStartAt(), timezone),
-                timeZoneService.formatLocal(session.getEndAt(), timezone),
+                session.getStartAt(),
+                session.getEndAt(),
+                timeZoneService.toLocal(session.getStartAt(), timezone),
+                timeZoneService.toLocal(session.getEndAt(), timezone),
                 timezone
         );
     }

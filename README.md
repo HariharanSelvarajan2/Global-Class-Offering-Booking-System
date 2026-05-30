@@ -34,6 +34,10 @@ API Gateway is intentionally thin. It only routes requests and exposes a combine
 
 ## Services
 
+This repository is a microservices system kept in a single Git repository, also called a monorepo. It is not a monolith: Course Service, Booking Service, and API Gateway are separate Spring Boot applications with separate responsibilities and separate databases. Keeping them in one repo is fine for a demo or small team because it makes local setup and shared versioning easier, but the services still communicate over HTTP and should be deployed as separate processes.
+
+This split is useful here because Course Service owns offerings/sessions, while Booking Service owns parent bookings and concurrency rules. For a production system, keep this shape only if those ownership boundaries are valuable enough to justify the extra distributed-system complexity.
+
 ### Course Service
 
 Runs on port `8081`.
@@ -113,10 +117,10 @@ Multiple parents can book the same offering because the conflict rule is parent-
 
 Teacher APIs accept local date-time values and an IANA timezone such as `Asia/Kolkata` or `America/New_York`.
 
-The Course Service stores all session times as UTC instants in PostgreSQL `timestamptz` columns. Parent-facing APIs accept a `timezone` query parameter and return both:
+The Course Service stores all session times as UTC instants in PostgreSQL `timestamptz` columns. Parent-facing APIs accept a `timezone` query parameter and return standard ISO-8601 datetime values:
 
-- `startAtUtc` / `endAtUtc`
-- `localStart` / `localEnd` in the requested timezone
+- `startAtUtc` / `endAtUtc`, for example `2026-06-13T17:30:00Z`
+- `localStart` / `localEnd` in the requested timezone, for example `2026-06-13T23:00:00+05:30`
 
 Use IANA timezone names, not abbreviations like `IST` or `PST`.
 
@@ -143,6 +147,8 @@ Use IANA timezone names, not abbreviations like `IST` or `PST`.
 
 ## Run Locally With Docker
 
+Install Docker Desktop, start it, then run from the repository root:
+
 ```bash
 docker compose up --build
 ```
@@ -150,9 +156,21 @@ docker compose up --build
 Services:
 
 - API Gateway: `http://localhost:8080`
+- Course Service through Gateway: `http://localhost:8080/course`
+- Booking Service through Gateway: `http://localhost:8080/booking`
 - Course Service: `http://localhost:8081`
 - Booking Service: `http://localhost:8082`
 - PostgreSQL: `localhost:5432`
+
+Useful Docker commands:
+
+```bash
+docker compose ps
+docker compose logs -f booking-service
+docker compose down
+```
+
+If Booking Service is not reachable, first check `docker compose ps`. It depends on Course Service and uses `COURSE_SERVICE_URL=http://course-service:8081` inside Docker.
 
 ## Run Locally Without Docker
 
@@ -200,59 +218,153 @@ curl http://localhost:8080/booking/v3/api-docs -o booking-service-openapi.json
 
 ## API Documentation
 
+All examples below use the API Gateway on port `8080`. To call services directly, remove `/course` and use port `8081` for Course Service, or remove `/booking` and use port `8082` for Booking Service.
+
 ### Teacher APIs
 
 #### Create Offering
 
-`POST /api/v1/teacher/offerings`
+`POST /course/api/v1/teacher/offerings`
 
-```json
-{
-  "teacherId": "11111111-1111-1111-1111-111111111111",
-  "courseName": "Minecraft Coding",
-  "offeringName": "Saturday Batch",
-  "teacherTimezone": "Asia/Kolkata"
-}
+```bash
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings \
+  -H "Content-Type: application/json" \
+  -d '{"teacherId":"11111111-1111-1111-1111-111111111111","courseName":"Minecraft Coding","offeringName":"Saturday Batch","teacherTimezone":"Asia/Kolkata"}'
+```
+
+```bash
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings \
+  -H "Content-Type: application/json" \
+  -d '{"teacherId":"22222222-2222-2222-2222-222222222222","courseName":"Roblox Game Design","offeringName":"New York Weekend","teacherTimezone":"America/New_York"}'
+```
+
+```bash
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings \
+  -H "Content-Type: application/json" \
+  -d '{"teacherId":"33333333-3333-3333-3333-333333333333","courseName":"Art Drawing","offeringName":"Tokyo Morning","teacherTimezone":"Asia/Tokyo"}'
 ```
 
 #### Add Session
 
-`POST /api/v1/teacher/offerings/{offeringId}/sessions`
+`POST /course/api/v1/teacher/offerings/{offeringId}/sessions`
 
-```json
-{
-  "localStart": "2026-06-06T18:00:00",
-  "localEnd": "2026-06-06T19:00:00"
-}
+```bash
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings/{offeringId}/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"localStart":"2026-06-06T18:00:00","localEnd":"2026-06-06T19:00:00"}'
+```
+
+```bash
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings/{offeringId}/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"localStart":"2026-06-13T10:00:00","localEnd":"2026-06-13T11:30:00","timezone":"America/New_York"}'
+```
+
+```bash
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings/{offeringId}/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"localStart":"2026-06-20T09:00:00","localEnd":"2026-06-20T10:00:00","timezone":"Asia/Tokyo"}'
 ```
 
 Optional `timezone` can be sent if a specific session should use a timezone different from the offering timezone.
 
 #### Get Teacher Offerings
 
-`GET /api/v1/teacher/{teacherId}/offerings?timezone=Asia/Kolkata`
+```bash
+curl "http://localhost:8080/course/api/v1/teacher/11111111-1111-1111-1111-111111111111/offerings?timezone=Asia/Kolkata"
+```
+
+```bash
+curl "http://localhost:8080/course/api/v1/teacher/22222222-2222-2222-2222-222222222222/offerings?timezone=America/New_York"
+```
+
+```bash
+curl "http://localhost:8080/course/api/v1/teacher/33333333-3333-3333-3333-333333333333/offerings?timezone=Europe/London"
+```
+
+### Internal Course APIs
+
+These are used by Booking Service, but can be called while testing.
+
+#### Get Internal Available Offerings
+
+```bash
+curl "http://localhost:8080/course/internal/v1/offerings?timezone=Asia/Kolkata"
+```
+
+```bash
+curl "http://localhost:8080/course/internal/v1/offerings?timezone=America/New_York"
+```
+
+```bash
+curl "http://localhost:8080/course/internal/v1/offerings?timezone=Europe/London"
+```
+
+#### Get Internal Offering By ID
+
+```bash
+curl "http://localhost:8080/course/internal/v1/offerings/{offeringId}?timezone=Asia/Kolkata"
+```
+
+```bash
+curl "http://localhost:8080/course/internal/v1/offerings/{offeringId}?timezone=America/New_York"
+```
+
+```bash
+curl "http://localhost:8080/course/internal/v1/offerings/{offeringId}?timezone=Asia/Tokyo"
+```
 
 ### Parent APIs
 
 #### Get Available Offerings
 
-`GET /api/v1/parent/offerings?timezone=America/New_York`
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/offerings?timezone=Asia/Kolkata"
+```
+
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/offerings?timezone=America/New_York"
+```
+
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/offerings?timezone=Europe/London"
+```
 
 #### Book Offering
 
-`POST /api/v1/parent/bookings`
+`POST /booking/api/v1/parent/bookings`
 
-```json
-{
-  "parentId": "22222222-2222-2222-2222-222222222222",
-  "offeringId": "33333333-3333-3333-3333-333333333333",
-  "timezone": "America/New_York"
-}
+```bash
+curl -X POST http://localhost:8080/booking/api/v1/parent/bookings \
+  -H "Content-Type: application/json" \
+  -d '{"parentId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","offeringId":"{offeringId}","timezone":"Asia/Kolkata"}'
+```
+
+```bash
+curl -X POST http://localhost:8080/booking/api/v1/parent/bookings \
+  -H "Content-Type: application/json" \
+  -d '{"parentId":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","offeringId":"{offeringId}","timezone":"America/New_York"}'
+```
+
+```bash
+curl -X POST http://localhost:8080/booking/api/v1/parent/bookings \
+  -H "Content-Type: application/json" \
+  -d '{"parentId":"cccccccc-cccc-cccc-cccc-cccccccccccc","offeringId":"{offeringId}","timezone":"Europe/London"}'
 ```
 
 #### Get Bookings
 
-`GET /api/v1/parent/bookings?parentId=22222222-2222-2222-2222-222222222222&timezone=America/New_York`
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/bookings?parentId=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa&timezone=Asia/Kolkata"
+```
+
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/bookings?parentId=bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb&timezone=America/New_York"
+```
+
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/bookings?parentId=cccccccc-cccc-cccc-cccc-cccccccccccc&timezone=Europe/London"
+```
 
 ## Assumptions
 

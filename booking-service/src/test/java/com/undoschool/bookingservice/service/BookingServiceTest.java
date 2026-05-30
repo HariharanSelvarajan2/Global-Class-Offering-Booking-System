@@ -20,6 +20,8 @@ import com.undoschool.bookingservice.exception.BadRequestException;
 import com.undoschool.bookingservice.exception.ConflictException;
 import com.undoschool.bookingservice.repository.BookingRepository;
 import com.undoschool.bookingservice.repository.ParentBookingLockRepository;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -58,8 +60,8 @@ class BookingServiceTest {
     void getsAvailableOfferingsInParentTimezone() {
         OfferingResponse offering = offering(UUID.randomUUID(), "PUBLISHED", List.of(session(
                 UUID.randomUUID(),
-                "2026-06-13 05:30 PM",
-                "2026-06-13 07:30 PM"
+                Instant.parse("2026-06-13T17:30:00Z"),
+                Instant.parse("2026-06-13T19:30:00Z")
         )));
         when(courseServiceClient.getAvailableOfferings("Asia/Kolkata")).thenReturn(List.of(offering));
 
@@ -215,7 +217,7 @@ class BookingServiceTest {
     }
 
     @Test
-    void rejectsOfferingWithInvalidSessionTimeFormat() {
+    void rejectsOfferingWithMissingSessionTime() {
         UUID parentId = UUID.randomUUID();
         UUID offeringId = UUID.randomUUID();
         when(lockRepository.findLocked(parentId)).thenReturn(Optional.of(anyLock(parentId)));
@@ -223,8 +225,8 @@ class BookingServiceTest {
         when(courseServiceClient.getOffering(offeringId, "UTC"))
                 .thenReturn(offering(offeringId, "PUBLISHED", List.of(session(
                         offeringId,
-                        "2026-06-06T12:30:00Z",
-                        "2026-06-06 01:30 PM"
+                        null,
+                        Instant.parse("2026-06-06T13:30:00Z")
                 ))));
 
         assertThatThrownBy(() -> bookingService.bookOffering(new BookOfferingRequest(
@@ -232,7 +234,7 @@ class BookingServiceTest {
                 offeringId,
                 "UTC"
         ))).isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("time format");
+                .hasMessageContaining("invalid session time range");
 
         verify(bookingRepository, never()).save(any(Booking.class));
     }
@@ -246,8 +248,8 @@ class BookingServiceTest {
         when(courseServiceClient.getOffering(offeringId, "UTC"))
                 .thenReturn(offering(offeringId, "PUBLISHED", List.of(session(
                         offeringId,
-                        "2026-06-06 01:30 PM",
-                        "2026-06-06 12:30 PM"
+                        Instant.parse("2026-06-06T13:30:00Z"),
+                        Instant.parse("2026-06-06T12:30:00Z")
                 ))));
 
         assertThatThrownBy(() -> bookingService.bookOffering(new BookOfferingRequest(
@@ -294,14 +296,14 @@ class BookingServiceTest {
         when(courseServiceClient.getOffering(requestedOfferingId, "UTC"))
                 .thenReturn(offering(requestedOfferingId, "PUBLISHED", List.of(session(
                         requestedOfferingId,
-                        "2026-06-06 01:30 PM",
-                        "2026-06-06 02:30 PM"
+                        Instant.parse("2026-06-06T13:30:00Z"),
+                        Instant.parse("2026-06-06T14:30:00Z")
                 ))));
         when(courseServiceClient.getOffering(existingOfferingId, "UTC"))
                 .thenReturn(offering(existingOfferingId, "PUBLISHED", List.of(session(
                         existingOfferingId,
-                        "2026-06-06 12:30 PM",
-                        "2026-06-06 01:30 PM"
+                        Instant.parse("2026-06-06T12:30:00Z"),
+                        Instant.parse("2026-06-06T13:30:00Z")
                 ))));
         when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -326,13 +328,13 @@ class BookingServiceTest {
                 .thenReturn(List.of(new Booking(parentId, existingOfferingId, "Course", "Batch")));
         when(courseServiceClient.getOffering(requestedOfferingId, "UTC"))
                 .thenReturn(offering(requestedOfferingId, "PUBLISHED", List.of(
-                        session(requestedOfferingId, "2026-06-07 11:00 AM", "2026-06-07 12:00 PM"),
-                        session(requestedOfferingId, "2026-06-14 05:30 PM", "2026-06-14 06:30 PM")
+                        session(requestedOfferingId, Instant.parse("2026-06-07T11:00:00Z"), Instant.parse("2026-06-07T12:00:00Z")),
+                        session(requestedOfferingId, Instant.parse("2026-06-14T17:30:00Z"), Instant.parse("2026-06-14T18:30:00Z"))
                 )));
         when(courseServiceClient.getOffering(existingOfferingId, "UTC"))
                 .thenReturn(offering(existingOfferingId, "PUBLISHED", List.of(
-                        session(existingOfferingId, "2026-06-07 09:00 AM", "2026-06-07 10:00 AM"),
-                        session(existingOfferingId, "2026-06-14 05:00 PM", "2026-06-14 06:00 PM")
+                        session(existingOfferingId, Instant.parse("2026-06-07T09:00:00Z"), Instant.parse("2026-06-07T10:00:00Z")),
+                        session(existingOfferingId, Instant.parse("2026-06-14T17:00:00Z"), Instant.parse("2026-06-14T18:00:00Z"))
                 )));
 
         assertThatThrownBy(() -> bookingService.bookOffering(new BookOfferingRequest(
@@ -384,18 +386,18 @@ class BookingServiceTest {
     }
 
     private SessionResponse session(UUID offeringId) {
-        return session(offeringId, "2026-06-06 12:30 PM", "2026-06-06 01:30 PM");
+        return session(offeringId, Instant.parse("2026-06-06T12:30:00Z"), Instant.parse("2026-06-06T13:30:00Z"));
     }
 
-    private SessionResponse session(UUID offeringId, String startAtUtc, String endAtUtc) {
+    private SessionResponse session(UUID offeringId, Instant startAtUtc, Instant endAtUtc) {
         return new SessionResponse(
                 UUID.randomUUID(),
                 offeringId,
                 UUID.randomUUID(),
                 startAtUtc,
                 endAtUtc,
-                startAtUtc,
-                endAtUtc,
+                startAtUtc == null ? null : OffsetDateTime.parse(startAtUtc.toString()),
+                endAtUtc == null ? null : OffsetDateTime.parse(endAtUtc.toString()),
                 "UTC"
         );
     }

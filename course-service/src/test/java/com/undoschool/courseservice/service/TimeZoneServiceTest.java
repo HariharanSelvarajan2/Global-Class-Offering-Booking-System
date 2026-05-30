@@ -30,10 +30,10 @@ class TimeZoneServiceTest {
     }
 
     @Test
-    void formatsUtcAndLocalTimeForApiDisplay() {
+    void convertsUtcInstantToRequestedLocalOffsetTime() {
         Instant instant = Instant.parse("2026-06-13T17:30:00Z");
 
-        assertThat(timeZoneService.formatUtc(instant)).isEqualTo("2026-06-13 05:30 PM");
-        assertThat(timeZoneService.formatLocal(instant, "Asia/Kolkata")).isEqualTo("2026-06-13 11:00 PM");
+        assertThat(timeZoneService.toLocal(instant, "Asia/Kolkata").toString())
+                .isEqualTo("2026-06-13T23:00+05:30");
     }
 }

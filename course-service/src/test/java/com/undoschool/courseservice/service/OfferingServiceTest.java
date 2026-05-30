@@ -131,10 +131,10 @@ class OfferingServiceTest {
         ArgumentCaptor<CourseSession> captor = ArgumentCaptor.forClass(CourseSession.class);
         verify(sessionRepository).save(captor.capture());
         assertThat(captor.getValue().getTeacherId()).isEqualTo(teacherId);
-        assertThat(response.startAtUtc()).isEqualTo("2026-06-06 12:30 PM");
-        assertThat(response.endAtUtc()).isEqualTo("2026-06-06 01:30 PM");
-        assertThat(response.localStart()).isEqualTo("2026-06-06 06:00 PM");
-        assertThat(response.localEnd()).isEqualTo("2026-06-06 07:00 PM");
+        assertThat(response.startAtUtc()).isEqualTo(Instant.parse("2026-06-06T12:30:00Z"));
+        assertThat(response.endAtUtc()).isEqualTo(Instant.parse("2026-06-06T13:30:00Z"));
+        assertThat(response.localStart().toString()).isEqualTo("2026-06-06T18:00+05:30");
+        assertThat(response.localEnd().toString()).isEqualTo("2026-06-06T19:00+05:30");
         assertThat(response.displayTimezone()).isEqualTo("Asia/Kolkata");
         assertThat(offering.getStatus().name()).isEqualTo("PUBLISHED");
         verify(offeringRepository).save(offering);
@@ -154,10 +154,10 @@ class OfferingServiceTest {
                 "Asia/Kolkata"
         ));
 
-        assertThat(response.startAtUtc()).isEqualTo("2026-06-13 05:30 PM");
-        assertThat(response.endAtUtc()).isEqualTo("2026-06-13 07:30 PM");
-        assertThat(response.localStart()).isEqualTo("2026-06-13 11:00 PM");
-        assertThat(response.localEnd()).isEqualTo("2026-06-14 01:00 AM");
+        assertThat(response.startAtUtc()).isEqualTo(Instant.parse("2026-06-13T17:30:00Z"));
+        assertThat(response.endAtUtc()).isEqualTo(Instant.parse("2026-06-13T19:30:00Z"));
+        assertThat(response.localStart().toString()).isEqualTo("2026-06-13T23:00+05:30");
+        assertThat(response.localEnd().toString()).isEqualTo("2026-06-14T01:00+05:30");
         assertThat(response.displayTimezone()).isEqualTo("Asia/Kolkata");
     }
 
@@ -225,7 +225,7 @@ class OfferingServiceTest {
         assertThat(responses).hasSize(1);
         assertThat(responses.get(0).offeringName()).isEqualTo("Draft Batch");
         assertThat(responses.get(0).sessions()).hasSize(1);
-        assertThat(responses.get(0).sessions().get(0).localStart()).isEqualTo("2026-05-20 07:00 PM");
+        assertThat(responses.get(0).sessions().get(0).localStart().toString()).isEqualTo("2026-05-20T19:00+05:30");
     }
 
     @Test
@@ -267,7 +267,7 @@ class OfferingServiceTest {
 
         OfferingResponse response = offeringService.getAvailableOfferings(null).get(0);
 
-        assertThat(response.sessions().get(0).localStart()).isEqualTo("2026-06-13 01:30 PM");
+        assertThat(response.sessions().get(0).localStart().toString()).isEqualTo("2026-06-13T13:30-04:00");
         assertThat(response.sessions().get(0).displayTimezone()).isEqualTo("America/New_York");
     }
 
@@ -305,8 +305,8 @@ class OfferingServiceTest {
         OfferingResponse response = offeringService.getOffering(offeringId, "America/New_York");
 
         assertThat(response.sessions()).hasSize(2);
-        assertThat(response.sessions().get(0).startAtUtc()).isEqualTo("2026-06-06 12:30 PM");
-        assertThat(response.sessions().get(0).localStart()).isEqualTo("2026-06-06 08:30 AM");
+        assertThat(response.sessions().get(0).startAtUtc()).isEqualTo(Instant.parse("2026-06-06T12:30:00Z"));
+        assertThat(response.sessions().get(0).localStart().toString()).isEqualTo("2026-06-06T08:30-04:00");
         assertThat(response.sessions().get(0).displayTimezone()).isEqualTo("America/New_York");
     }
 
@@ -321,3 +321,4 @@ class OfferingServiceTest {
         verifyNoInteractions(sessionRepository);
     }
 }
+
