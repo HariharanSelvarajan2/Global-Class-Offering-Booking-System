@@ -3,6 +3,7 @@ WORKDIR /workspace
 COPY pom.xml .
 COPY course-service/pom.xml course-service/pom.xml
 COPY booking-service/pom.xml booking-service/pom.xml
+COPY api-gateway/pom.xml api-gateway/pom.xml
 COPY course-service/src course-service/src
 RUN mvn -pl course-service -am clean package -DskipTests
 

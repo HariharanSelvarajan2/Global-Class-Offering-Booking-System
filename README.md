@@ -140,15 +140,51 @@ Use IANA timezone names, not abbreviations like `IST` or `PST`.
 | `BOOKING_DB_PASSWORD` | `postgres` |
 | `COURSE_SERVICE_URL` | `http://localhost:8081` |
 
-## Run Locally With Docker
+## Step By Step: Run With Docker
 
-Install Docker Desktop, start it, then run from the repository root:
+Docker should create the databases for you. The Postgres container runs `docker/postgres-init.sql` on first startup, which creates:
+
+- `course_db`
+- `booking_db`
+
+After those databases exist, Flyway runs inside each service and creates the tables.
+
+### 1. Start From The Repository Root
+
+Install Docker Desktop, start it, and wait until Docker is running. Then open a terminal:
+
+```bash
+cd "C:\Users\Hari\Documents\Global Class Offering Booking System"
+```
+
+Make sure nothing else is using ports `5432`, `8080`, `8081`, or `8082`. If your local PostgreSQL is already running on `5432`, stop it before starting Docker.
+
+### 2. Start All Containers
 
 ```bash
 docker compose up --build
 ```
 
-Services:
+Wait until all services are running. You should see logs for:
+
+- `postgres`
+- `course-service`
+- `booking-service`
+- `api-gateway`
+
+In another terminal, confirm the containers are up:
+
+```bash
+docker compose ps
+```
+
+### 3. Open Swagger
+
+- Gateway Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Course Service Swagger UI: `http://localhost:8081/swagger-ui.html`
+- Booking Service Swagger UI: `http://localhost:8082/swagger-ui.html`
+
+### 4. Use These URLs
 
 - API Gateway: `http://localhost:8080`
 - Course Service through Gateway: `http://localhost:8080/course`
@@ -157,40 +193,183 @@ Services:
 - Booking Service: `http://localhost:8082`
 - PostgreSQL: `localhost:5432`
 
-Useful Docker commands:
+### 5. Prove The API Works
+
+Create an offering:
 
 ```bash
-docker compose ps
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings \
+  -H "Content-Type: application/json" \
+  -d '{"teacherId":"11111111-1111-1111-1111-111111111111","courseName":"Minecraft Coding","offeringName":"Saturday Batch","teacherTimezone":"Asia/Kolkata"}'
+```
+
+Copy the `id` from that response. Use it as `{offeringId}` below.
+
+Add a session:
+
+```bash
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings/{offeringId}/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"localStart":"2026-06-06T18:00:00","localEnd":"2026-06-06T19:00:00"}'
+```
+
+View available offerings as a parent in another timezone:
+
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/offerings?timezone=America/New_York"
+```
+
+Book the whole offering:
+
+```bash
+curl -X POST http://localhost:8080/booking/api/v1/parent/bookings \
+  -H "Content-Type: application/json" \
+  -d '{"parentId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","offeringId":"{offeringId}","timezone":"America/New_York"}'
+```
+
+View the parent's bookings:
+
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/bookings?parentId=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa&timezone=America/New_York"
+```
+
+At this point the full API flow is working: teacher creates an offering, teacher adds sessions, parent sees available offerings, parent books an offering, and parent sees booked offerings.
+
+### 6. Stop Or Reset Docker
+
+Useful Docker commands while it is running:
+
+```bash
+docker compose logs -f postgres
+docker compose logs -f course-service
 docker compose logs -f booking-service
+docker compose logs -f api-gateway
+```
+
+Stop the system:
+
+```bash
 docker compose down
 ```
 
-If Booking Service is not reachable, first check `docker compose ps`. It depends on Course Service and uses `COURSE_SERVICE_URL=http://course-service:8081` inside Docker.
+Reset Docker databases from scratch:
 
-## Run Locally Without Docker
+```bash
+docker compose down --volumes --remove-orphans
+docker compose up --build
+```
+
+Use the reset command if you previously started Docker before `docker/postgres-init.sql` existed or changed. PostgreSQL only runs init scripts when its data directory is empty.
+
+If Booking Service is not reachable, first check `docker compose ps`. It depends on Course Service and uses `COURSE_SERVICE_URL=http://course-service:8081` inside Docker. If Course Service is failing with `database "course_db" does not exist`, reset Docker with the commands above.
+
+## Step By Step: Run Without Docker
 
 Install Java 21, Maven 3.9+, and PostgreSQL.
 
-Create databases:
+### 1. Start From The Repository Root
+
+```bash
+cd "C:\Users\Hari\Documents\Global Class Offering Booking System"
+```
+
+### 2. Create The Databases
+
+When running without Docker, the application will not create PostgreSQL databases. Create the databases yourself first:
 
 ```sql
 create database course_db;
 create database booking_db;
 ```
 
-Start Course Service:
+For example, if `psql` is available:
+
+```bash
+psql -U postgres -c "create database course_db;"
+psql -U postgres -c "create database booking_db;"
+```
+
+### 3. Start Course Service
+
+Open terminal 1:
 
 ```bash
 mvn -pl course-service spring-boot:run
 ```
 
-Start Booking Service in another terminal:
+Wait until Course Service starts on port `8081`. Flyway creates the course tables automatically.
+
+### 4. Start Booking Service
+
+Open terminal 2:
 
 ```bash
 mvn -pl booking-service spring-boot:run
 ```
 
-Flyway runs migrations automatically on startup.
+Wait until Booking Service starts on port `8082`. Flyway creates the booking tables automatically.
+
+### 5. Start API Gateway
+
+Open terminal 3:
+
+```bash
+mvn -pl api-gateway spring-boot:run
+```
+
+Wait until API Gateway starts on port `8080`.
+
+### 6. Open Swagger
+
+- Gateway Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Course Service Swagger UI: `http://localhost:8081/swagger-ui.html`
+- Booking Service Swagger UI: `http://localhost:8082/swagger-ui.html`
+
+### 7. Prove The API Works
+
+Use the same gateway API flow as the Docker setup.
+
+Create an offering:
+
+```bash
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings \
+  -H "Content-Type: application/json" \
+  -d '{"teacherId":"11111111-1111-1111-1111-111111111111","courseName":"Minecraft Coding","offeringName":"Saturday Batch","teacherTimezone":"Asia/Kolkata"}'
+```
+
+Copy the `id` from that response. Use it as `{offeringId}` below.
+
+Add a session:
+
+```bash
+curl -X POST http://localhost:8080/course/api/v1/teacher/offerings/{offeringId}/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"localStart":"2026-06-06T18:00:00","localEnd":"2026-06-06T19:00:00"}'
+```
+
+View available offerings:
+
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/offerings?timezone=Asia/Kolkata"
+```
+
+Book the offering:
+
+```bash
+curl -X POST http://localhost:8080/booking/api/v1/parent/bookings \
+  -H "Content-Type: application/json" \
+  -d '{"parentId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","offeringId":"{offeringId}","timezone":"Asia/Kolkata"}'
+```
+
+View the parent's bookings:
+
+```bash
+curl "http://localhost:8080/booking/api/v1/parent/bookings?parentId=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa&timezone=Asia/Kolkata"
+```
+
+### 8. Stop The Services
+
+Press `Ctrl+C` in the API Gateway, Booking Service, and Course Service terminals.
 
 ## Swagger / OpenAPI Documentation
 
@@ -239,7 +418,9 @@ curl -X POST http://localhost:8080/course/api/v1/teacher/offerings \
   -d '{"teacherId":"33333333-3333-3333-3333-333333333333","courseName":"Art Drawing","offeringName":"Tokyo Morning","teacherTimezone":"Asia/Tokyo"}'
 ```
 
-#### Add Session (Copy paste the offering ID from the 'course/api/v1/teacher/offerings' reponse )
+#### Add Session
+
+Copy and paste the offering ID from the `course/api/v1/teacher/offerings` response.
 
 `POST /course/api/v1/teacher/offerings/{offeringId}/sessions`
 
@@ -373,10 +554,10 @@ curl "http://localhost:8080/booking/api/v1/parent/bookings?parentId=cccccccc-ccc
 
 1. Create an offering in Course Service using `http://localhost:8080/course/api/v1/teacher/offerings`
 2. Add multiple sessions to that offering, copy paste the offering id from above response.
-3. View the offerings from parent api with parent timezone - POST `http://localhost:8080/booking/api/v1/parent/offerings`
-3. Call Booking Service `http://localhost:8080/booking/api/v1/parent/bookings` with desired offering id,
+3. View the offerings from parent api with parent timezone - GET `http://localhost:8080/booking/api/v1/parent/offerings`
+4. Call Booking Service `http://localhost:8080/booking/api/v1/parent/bookings` with desired offering id,
 parent id is just UUID field, random Id for parent Id works.(Further, can introduce a user with role based access for parents/teachers, then use get from parent/teacher id through client)
-4. Book the offering.
-5. Try booking another offering with an overlapping session for the same parent.
-6. The second booking should return `409 BOOKING_CONFLICT`.
-7. Concurrent booking tried and tested using powershell.
+5. Book the offering.
+6. Try booking another offering with an overlapping session for the same parent.
+7. The second booking should return `409 BOOKING_CONFLICT`.
+8. Concurrent booking tried and tested using powershell.
