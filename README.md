@@ -129,6 +129,7 @@ Use IANA timezone names, not abbreviations like `IST` or `PST`.
 | `COURSE_DB_URL` | `jdbc:postgresql://localhost:5432/course_db` |
 | `COURSE_DB_USERNAME` | `postgres` |
 | `COURSE_DB_PASSWORD` | `postgres` |
+| `COURSE_SERVICE_URL` | `http://localhost:8081` |
 
 ### Booking Service
 
@@ -138,7 +139,8 @@ Use IANA timezone names, not abbreviations like `IST` or `PST`.
 | `BOOKING_DB_URL` | `jdbc:postgresql://localhost:5432/booking_db` |
 | `BOOKING_DB_USERNAME` | `postgres` |
 | `BOOKING_DB_PASSWORD` | `postgres` |
-| `COURSE_SERVICE_URL` | `http://localhost:8081` |
+| `BOOKING_SERVICE_URL` | `http://localhost:8082` |
+
 
 ## Step By Step: Run With Docker
 
@@ -382,13 +384,6 @@ Open these URLs after the services are running:
 - Course Service OpenAPI JSON: `http://localhost:8081/v3/api-docs`
 - Booking Service Swagger UI: `http://localhost:8082/swagger-ui.html`
 - Booking Service OpenAPI JSON: `http://localhost:8082/v3/api-docs`
-
-To submit Swagger documentation, open `/v3/api-docs` in the browser and save the JSON, or run:
-
-```bash
-curl http://localhost:8080/course/v3/api-docs -o course-service-openapi.json
-curl http://localhost:8080/booking/v3/api-docs -o booking-service-openapi.json
-```
 
 ## API Documentation
 
