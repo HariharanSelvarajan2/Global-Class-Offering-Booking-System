@@ -11,7 +11,12 @@ import com.undoschool.bookingservice.exception.ConflictException;
 import com.undoschool.bookingservice.repository.BookingRepository;
 import com.undoschool.bookingservice.repository.ParentBookingLockRepository;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -19,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class BookingService {
+
+    private static final DateTimeFormatter SESSION_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm a", Locale.US);
 
     private final CourseServiceClient courseServiceClient;
     private final BookingRepository bookingRepository;
@@ -139,15 +146,30 @@ public class BookingService {
     }
 
     private void validateSession(SessionResponse session) {
-        Instant start = session.startAtUtc();
-        Instant end = session.endAtUtc();
+        Instant start = parseUtc(session.startAtUtc());
+        Instant end = parseUtc(session.endAtUtc());
         if (start == null || end == null || !end.isAfter(start)) {
             throw new BadRequestException("Offering contains an invalid session time range.");
         }
     }
 
     private boolean overlaps(SessionResponse first, SessionResponse second) {
-        return first.startAtUtc().isBefore(second.endAtUtc()) && second.startAtUtc().isBefore(first.endAtUtc());
+        Instant firstStart = parseUtc(first.startAtUtc());
+        Instant firstEnd = parseUtc(first.endAtUtc());
+        Instant secondStart = parseUtc(second.startAtUtc());
+        Instant secondEnd = parseUtc(second.endAtUtc());
+        return firstStart.isBefore(secondEnd) && secondStart.isBefore(firstEnd);
+    }
+
+    private Instant parseUtc(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(value, SESSION_TIME_FORMATTER).toInstant(ZoneOffset.UTC);
+        } catch (DateTimeParseException exception) {
+            throw new BadRequestException("Offering contains an invalid session time format.");
+        }
     }
 
 }

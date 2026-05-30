@@ -28,4 +28,12 @@ class TimeZoneServiceTest {
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Invalid timezone");
     }
+
+    @Test
+    void formatsUtcAndLocalTimeForApiDisplay() {
+        Instant instant = Instant.parse("2026-06-13T17:30:00Z");
+
+        assertThat(timeZoneService.formatUtc(instant)).isEqualTo("2026-06-13 05:30 PM");
+        assertThat(timeZoneService.formatLocal(instant, "Asia/Kolkata")).isEqualTo("2026-06-13 11:00 PM");
+    }
 }
